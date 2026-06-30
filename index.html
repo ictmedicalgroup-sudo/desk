@@ -218,7 +218,7 @@ input:checked+.ts2::after{transform:translateX(16px)}
 .settcal-hours{width:48px;flex-shrink:0;position:relative}
 .hourlabel{position:absolute;left:0;right:6px;text-align:right;font-size:10px;color:var(--g500);transform:translateY(-6px)}
 .settcal-days{display:flex;flex:1;position:relative}
-.settcal-daycol{flex:1;position:relative;border-left:1px solid var(--g100);background-image:repeating-linear-gradient(to bottom,var(--g100) 0,var(--g100) 1px,transparent 1px,transparent 60px)}
+.settcal-daycol{flex:1;position:relative;border-left:1px solid var(--g100);background-image:repeating-linear-gradient(to bottom,var(--g100) 0,var(--g100) 1px,transparent 1px,transparent 40px)}
 .settcal-daycol.dragover{background-color:var(--blue-xlight)}
 .sblock{position:absolute;border-radius:6px;color:#fff;font-size:10.5px;font-weight:700;overflow:hidden;cursor:grab;box-shadow:0 1px 4px rgba(0,0,0,.22);user-select:none;padding:3px 5px 0}
 .sblock:active{cursor:grabbing}
@@ -896,8 +896,14 @@ const SETT_GIORNI = [
   {n:4,l:'Giovedì'},{n:5,l:'Venerdì'},{n:6,l:'Sabato'},
 ];
 const SETT_START_H = 7, SETT_END_H = 20;          // 7:00 → 20:00
-const SETT_TOTAL_MIN = (SETT_END_H-SETT_START_H)*60; // 780 px (1px = 1min)
+const SETT_TOTAL_MIN = (SETT_END_H-SETT_START_H)*60; // minuti totali (780)
 const SETT_SNAP = 15;                              // snap a 15 minuti
+const SETT_HOUR_PX = 40;                           // altezza di un'ora in px (regola la compattezza verticale)
+const SETT_PXMIN = SETT_HOUR_PX/60;                // px per minuto
+const SETT_TOTAL_PX = SETT_TOTAL_MIN*SETT_PXMIN;   // altezza totale griglia in px
+
+function settPx(min){ return min*SETT_PXMIN; }
+function settPxToMin(px){ return px/SETT_PXMIN; }
 
 function settTimeToMin(t){ // "HH:MM" o "HH:MM:SS" → minuti dalle 7:00
   if(!t) return 0;
@@ -909,6 +915,7 @@ function settMinToTime(min){ // minuti dalle 7:00 → "HH:MM:SS"
   return `${p2(Math.floor(tot/60))}:${p2(tot%60)}:00`;
 }
 function settClamp(min){ return Math.max(0,Math.min(SETT_TOTAL_MIN,min)); }
+function settClampPx(px){ return Math.max(0,Math.min(SETT_TOTAL_PX,px)); }
 function settSnap(min){ return Math.round(min/SETT_SNAP)*SETT_SNAP; }
 
 // assegna colonna/numero colonne ai blocchi che si sovrappongono nello stesso giorno
@@ -956,17 +963,12 @@ function renderSettimana(pb){
 
   pb.innerHTML=`<div class="fi-an">
     <div class="card">
-      <div class="ch">
-        <span class="ct">🗓 Struttura Settimana</span>
-        <div class="cctrls">
-          <select class="csel" id="sett-sede">
-            ${sediVisibili.map(s=>`<option value="${s.id}"${s.id===sid?' selected':''}>${esc(s.nome)}</option>`).join('')}
-          </select>
-        </div>
-      </div>
       <div class="cb">
         <div class="settwrap">
           <div class="settres">
+            <select class="csel" id="sett-sede" style="width:100%;margin-bottom:12px">
+              ${sediVisibili.map(s=>`<option value="${s.id}"${s.id===sid?' selected':''}>${esc(s.nome)}</option>`).join('')}
+            </select>
             <div class="settres-h">Risorse <button class="btn bp-green bsm" id="sett-radd">+</button></div>
             ${!risorseS.length?`<div class="rchip-hint">Nessuna risorsa per questa sede. Creane una e poi trascinala sul calendario.</div>`:
               risorseS.map(r=>`
@@ -983,17 +985,17 @@ function renderSettimana(pb){
                 ${SETT_GIORNI.map(g=>`<div class="settcal-daycol-h">${g.l}</div>`).join('')}
               </div>
               <div class="settcal-body">
-                <div class="settcal-hours" style="height:${SETT_TOTAL_MIN}px">
-                  ${hourRows.map(h=>`<div class="hourlabel" style="top:${(h-SETT_START_H)*60}px">${h}:00</div>`).join('')}
+                <div class="settcal-hours" style="height:${SETT_TOTAL_PX}px">
+                  ${hourRows.map(h=>`<div class="hourlabel" style="top:${(h-SETT_START_H)*SETT_HOUR_PX}px">${h}:00</div>`).join('')}
                 </div>
                 <div class="settcal-days">
                   ${SETT_GIORNI.map(g=>{
                     const dayBlocks=settLayoutDay(blocchiS.filter(b=>b.giorno===g.n));
-                    return `<div class="settcal-daycol" data-giorno="${g.n}" style="height:${SETT_TOTAL_MIN}px">
+                    return `<div class="settcal-daycol" data-giorno="${g.n}" style="height:${SETT_TOTAL_PX}px">
                       ${dayBlocks.map(({b,col,cols})=>{
                         const r=S.risorse.find(x=>x.id===b.risorsa_id);
-                        const top=settTimeToMin(b.ora_inizio);
-                        const h=Math.max(15,settTimeToMin(b.ora_fine)-top);
+                        const top=settPx(settTimeToMin(b.ora_inizio));
+                        const h=Math.max(11,settPx(settTimeToMin(b.ora_fine)-settTimeToMin(b.ora_inizio)));
                         const wPct=100/cols, leftPct=col*wPct;
                         return `<div class="sblock" data-bid="${b.id}"
                           style="top:${top}px;height:${h}px;left:calc(${leftPct}% + 1px);width:calc(${wPct}% - 2px);background:${r?.colore||'#77797a'}">
@@ -1036,7 +1038,7 @@ function renderSettimana(pb){
       const rid=e.dataTransfer.getData('text/plain');
       if(!rid) return;
       const rect=col.getBoundingClientRect();
-      let startMin=settSnap(settClamp(e.clientY-rect.top));
+      let startMin=settSnap(settClamp(settPxToMin(e.clientY-rect.top)));
       let durMin=60;
       if(startMin+durMin>SETT_TOTAL_MIN){ durMin=SETT_TOTAL_MIN-startMin; }
       if(durMin<SETT_SNAP) startMin=SETT_TOTAL_MIN-SETT_SNAP, durMin=SETT_SNAP;
@@ -1069,7 +1071,7 @@ function renderSettimana(pb){
       const bid=el.dataset.bid;
       const block=S.blocchi.find(b=>b.id===bid); if(!block) return;
       const startX=e.clientX, startY=e.clientY;
-      const origTop=parseFloat(el.style.top);
+      const origTopPx=parseFloat(el.style.top);
       let moved=false, targetCol=el.closest('.settcal-daycol');
       el.style.zIndex=50;
       function onMove(ev2){
@@ -1078,7 +1080,7 @@ function renderSettimana(pb){
         if(!moved) return;
         const under=document.elementFromPoint(ev2.clientX,ev2.clientY)?.closest('.settcal-daycol');
         if(under) targetCol=under;
-        el.style.top=`${settClamp(origTop+dy)}px`;
+        el.style.top=`${settClampPx(origTopPx+dy)}px`;
       }
       function onUp(){
         document.removeEventListener('mousemove',onMove);
@@ -1086,7 +1088,7 @@ function renderSettimana(pb){
         el.style.zIndex='';
         if(!moved) return;
         const durMin=settTimeToMin(block.ora_fine)-settTimeToMin(block.ora_inizio);
-        let newTop=settSnap(parseFloat(el.style.top));
+        let newTop=settSnap(settPxToMin(parseFloat(el.style.top)));
         if(newTop+durMin>SETT_TOTAL_MIN) newTop=SETT_TOTAL_MIN-durMin;
         const newGiorno=parseInt(targetCol.dataset.giorno);
         const body={giorno:newGiorno,ora_inizio:settMinToTime(newTop),ora_fine:settMinToTime(newTop+durMin)};
@@ -1107,18 +1109,19 @@ function renderSettimana(pb){
       const bid=handle.dataset.brs;
       const block=S.blocchi.find(b=>b.id===bid); if(!block) return;
       const el=handle.closest('.sblock');
-      const startY=e.clientY, origH=parseFloat(el.style.height), top=parseFloat(el.style.top);
+      const startY=e.clientY, origHPx=parseFloat(el.style.height), topPx=parseFloat(el.style.top);
       function onMove(ev2){
         const dy=ev2.clientY-startY;
-        let newH=Math.max(SETT_SNAP,origH+dy);
-        if(top+newH>SETT_TOTAL_MIN) newH=SETT_TOTAL_MIN-top;
+        let newH=Math.max(settPx(SETT_SNAP),origHPx+dy);
+        if(topPx+newH>SETT_TOTAL_PX) newH=SETT_TOTAL_PX-topPx;
         el.style.height=`${newH}px`;
       }
       function onUp(){
         document.removeEventListener('mousemove',onMove);
         document.removeEventListener('mouseup',onUp);
-        const newH=settSnap(parseFloat(el.style.height));
-        const body={ora_fine:settMinToTime(top+newH)};
+        const newHMin=settSnap(settPxToMin(parseFloat(el.style.height)));
+        const startMin=settTimeToMin(block.ora_inizio);
+        const body={ora_fine:settMinToTime(startMin+newHMin)};
         db('PATCH',T('blocchi'),{flt:`id=eq.${bid}`,body}).then(()=>{
           S.blocchi=S.blocchi.map(b=>b.id===bid?{...b,...body}:b);
           renderPage();
